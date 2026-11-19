@@ -30,3 +30,10 @@ Initial project setup.
 
 Nackademin - DEVOPS25
 Continuous Integration and Continuous Delivery
+
+## Development Workflow
+
+The main branch is protected.
+
+All changes are developed in separate branches and
+submitted through pull requests before merging into main.
