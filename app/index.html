@@ -4,10 +4,203 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CV Checker</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            font-family: Arial, sans-serif;
+            background: #f3f5f9;
+            color: #1e293b;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 540px;
+            padding: 36px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            box-shadow: 0 12px 35px rgba(15, 23, 42, 0.07);
+        }
+
+        h1 {
+            margin: 0 0 10px;
+            font-size: 30px;
+        }
+
+        .subtitle {
+            margin-bottom: 28px;
+            color: #64748b;
+            line-height: 1.6;
+        }
+
+        input[type="file"] {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border: 2px dashed #cbd5e1;
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 16px;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            background: #2563eb;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        #message {
+            margin-top: 18px;
+            line-height: 1.5;
+        }
+
+        #results {
+            margin-top: 24px;
+        }
+
+        .result {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .found {
+            color: #15803d;
+            font-weight: bold;
+        }
+
+        .missing {
+            color: #b91c1c;
+            font-weight: bold;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
 </head>
+
 <body>
-    <h1>CV Checker</h1>
-    <p>Simple PDF Resume Checker</p>
-    <p>Application is running successfully.</p>
+    <main class="container">
+        <h1>CV Checker</h1>
+
+        <p class="subtitle">
+            Upload your PDF resume to check whether
+            common CV sections are present.
+        </p>
+
+        <form id="upload-form">
+            <input
+                type="file"
+                id="cv-file"
+                accept=".pdf,application/pdf"
+                required
+            >
+
+            <button type="submit" id="submit-button">
+                Analyze CV
+            </button>
+        </form>
+
+        <p id="message" role="status" aria-live="polite"></p>
+
+        <section id="results" class="hidden">
+            <h2>Analysis Results</h2>
+            <div id="result-list"></div>
+        </section>
+    </main>
+
+    <script>
+        const form = document.getElementById("upload-form");
+        const fileInput = document.getElementById("cv-file");
+        const button = document.getElementById("submit-button");
+        const message = document.getElementById("message");
+        const results = document.getElementById("results");
+        const resultList = document.getElementById("result-list");
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const file = fileInput.files[0];
+
+            if (!file) {
+                message.textContent = "Please select a PDF file.";
+                return;
+            }
+
+            message.textContent = "Analyzing your CV...";
+            results.classList.add("hidden");
+            resultList.replaceChildren();
+            button.disabled = true;
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const response = await fetch("/upload", {
+                    method: "POST",
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        data.detail || "Unable to analyze the file."
+                    );
+                }
+
+                for (const [section, found] of Object.entries(data)) {
+                    const row = document.createElement("div");
+                    row.className = "result";
+
+                    const label = document.createElement("span");
+                    label.textContent =
+                        section.charAt(0).toUpperCase() +
+                        section.slice(1);
+
+                    const status = document.createElement("span");
+                    status.className = found ? "found" : "missing";
+                    status.textContent = found ? "Found" : "Missing";
+
+                    row.append(label, status);
+                    resultList.appendChild(row);
+                }
+
+                results.classList.remove("hidden");
+                message.textContent = "Analysis completed successfully.";
+
+            } catch (error) {
+                message.textContent = error.message;
+            } finally {
+                button.disabled = false;
+            }
+        });
+    </script>
 </body>
 </html>
