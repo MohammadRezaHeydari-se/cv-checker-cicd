@@ -89,6 +89,21 @@
             border-bottom: 1px solid #e2e8f0;
         }
 
+        .result-info {
+            min-width: 0;
+            flex: 1;
+            padding-right: 16px;
+        }
+
+        .result-value {
+            margin-top: 6px;
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
+        }
+
         .found {
             color: #15803d;
             font-weight: bold;
@@ -188,20 +203,30 @@
                     );
                 }
 
-                for (const [section, found] of Object.entries(data)) {
+                for (const [section, detail] of Object.entries(data)) {
                     const row = document.createElement("div");
                     row.className = "result";
 
-                    const label = document.createElement("span");
+                    const info = document.createElement("div");
+                    info.className = "result-info";
+
+                    const label = document.createElement("strong");
                     label.textContent =
-                        section.charAt(0).toUpperCase() +
-                        section.slice(1);
+                        section.charAt(0).toUpperCase() + section.slice(1);
+                    info.appendChild(label);
+
+                    if (detail.value) {
+                        const value = document.createElement("div");
+                        value.className = "result-value";
+                        value.textContent = detail.value;
+                        info.appendChild(value);
+                    }
 
                     const status = document.createElement("span");
-                    status.className = found ? "found" : "missing";
-                    status.textContent = found ? "Found" : "Missing";
+                    status.className = detail.found ? "found" : "missing";
+                    status.textContent = detail.found ? "Found" : "Missing";
 
-                    row.append(label, status);
+                    row.append(info, status);
                     resultList.appendChild(row);
                 }
 

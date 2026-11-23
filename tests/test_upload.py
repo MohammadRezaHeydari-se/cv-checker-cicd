@@ -28,10 +28,10 @@ def test_upload_pdf():
 
     result = response.json()
 
-    assert result["name"] == True
-    assert result["email"] == True
-    assert result["skills"] == True
-    assert result["education"] == False
+    assert result["name"]["found"] is True
+    assert result["email"]["found"] is True
+    assert result["skills"]["found"] is True
+    assert result["education"]["found"] is False
 
 def test_upload_invalid_file():
     response = client.post(
