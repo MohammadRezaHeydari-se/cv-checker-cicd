@@ -1,3 +1,4 @@
+
 name: Deploy to Ubuntu
 
 on:
@@ -18,11 +19,37 @@ jobs:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_repository.full_name == github.repository
+
     runs-on: [self-hosted, Linux, X64, cv-checker-deploy]
     timeout-minutes: 10
 
     steps:
+      # Check that the published commit is still the latest on main
+      - name: Verify latest commit
+        id: version_check
+        env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          LATEST_SHA=$(curl -fsS \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/commits/main" |
+            python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')
+
+          if [ "$DEPLOY_SHA" != "$LATEST_SHA" ]; then
+            echo "Skipping outdated deployment."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Deploy only if the published commit is the latest
       - name: Deploy published image
+        if: steps.version_check.outputs.deploy == 'true'
         env:
           IMAGE_NAME: ghcr.io/${{ github.repository }}
           DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -34,8 +61,10 @@ jobs:
 
           echo "Deploying: $NEW_IMAGE"
 
+          # Download the image before stopping the current container
           docker pull "$NEW_IMAGE"
 
+          # Save the previous image for rollback
           PREVIOUS_IMAGE=""
           if docker container inspect cv-checker >/dev/null 2>&1; then
             PREVIOUS_IMAGE="$(docker inspect --format '{{.Config.Image}}' cv-checker)"
@@ -43,6 +72,7 @@ jobs:
 
           echo "Previous image: ${PREVIOUS_IMAGE:-none}"
 
+          # Restore the previous image if deployment fails
           rollback() {
             echo "Deployment failed. Starting rollback..."
 
@@ -62,11 +92,13 @@ jobs:
               echo "Rollback completed."
             else
               echo "No previous image available for rollback."
+              return 1
             fi
           }
 
           trap rollback ERR
 
+          # Replace the running container
           docker rm -f cv-checker >/dev/null 2>&1 || true
 
           docker run -d \
@@ -75,10 +107,12 @@ jobs:
             -p 127.0.0.1:8001:8080 \
             "$NEW_IMAGE"
 
+          # Verify application health
           curl --fail --silent --show-error \
             --retry 10 --retry-delay 2 --retry-connrefused \
             http://127.0.0.1:8001/health
 
+          # Verify the deployed commit version
           EXPECTED_VERSION="${DEPLOY_SHA:0:7}"
           ACTUAL_VERSION="$(curl --fail --silent --show-error \
             http://127.0.0.1:8001/version)"
