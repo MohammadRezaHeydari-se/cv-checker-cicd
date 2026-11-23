@@ -134,7 +134,20 @@
             <div id="result-list"></div>
         </section>
     </main>
+    <p style="text-align: center; color: #888; font-size: 12px;">
+        Version: <span id="app-version">Loading...</span>
+    </p>
 
+    <script>
+        fetch("/version")
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("app-version").textContent = data.version;
+            })
+            .catch(() => {
+                document.getElementById("app-version").textContent = "unknown";
+            });
+    </script>
     <script>
         const form = document.getElementById("upload-form");
         const fileInput = document.getElementById("cv-file");

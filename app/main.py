@@ -8,10 +8,13 @@ from app.cv_checker import check_cv
 
 import pymupdf
 
+import os
+
 app =FastAPI()
 
 HTML_FILE = Path(__file__).parent / "index.html"
 
+APP_VERSION = os.getenv("APP_VERSION", "dev")
 
 @app.get("/")
 def home():
@@ -20,6 +23,10 @@ def home():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/version")
+def version():
+    return {"version": APP_VERSION}
 
 @app.post("/upload")
 async def upload_cv(file: UploadFile = File(...)):
