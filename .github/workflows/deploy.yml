@@ -1,0 +1,91 @@
+name: Deploy to Ubuntu
+
+on:
+  workflow_run:
+    workflows: ["Publish Docker Image"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cv-checker-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, cv-checker-deploy]
+    timeout-minutes: 10
+
+    steps:
+      - name: Deploy published image
+        env:
+          IMAGE_NAME: ghcr.io/${{ github.repository }}
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          IMAGE_NAME="$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')"
+          NEW_IMAGE="${IMAGE_NAME}:${DEPLOY_SHA}"
+
+          echo "Deploying: $NEW_IMAGE"
+
+          docker pull "$NEW_IMAGE"
+
+          PREVIOUS_IMAGE=""
+          if docker container inspect cv-checker >/dev/null 2>&1; then
+            PREVIOUS_IMAGE="$(docker inspect --format '{{.Config.Image}}' cv-checker)"
+          fi
+
+          echo "Previous image: ${PREVIOUS_IMAGE:-none}"
+
+          rollback() {
+            echo "Deployment failed. Starting rollback..."
+
+            docker rm -f cv-checker >/dev/null 2>&1 || true
+
+            if [ -n "$PREVIOUS_IMAGE" ]; then
+              docker run -d \
+                --name cv-checker \
+                --restart unless-stopped \
+                -p 127.0.0.1:8001:8080 \
+                "$PREVIOUS_IMAGE"
+
+              curl --fail --silent --show-error \
+                --retry 10 --retry-delay 2 --retry-connrefused \
+                http://127.0.0.1:8001/health
+
+              echo "Rollback completed."
+            else
+              echo "No previous image available for rollback."
+            fi
+          }
+
+          trap rollback ERR
+
+          docker rm -f cv-checker >/dev/null 2>&1 || true
+
+          docker run -d \
+            --name cv-checker \
+            --restart unless-stopped \
+            -p 127.0.0.1:8001:8080 \
+            "$NEW_IMAGE"
+
+          curl --fail --silent --show-error \
+            --retry 10 --retry-delay 2 --retry-connrefused \
+            http://127.0.0.1:8001/health
+
+          EXPECTED_VERSION="${DEPLOY_SHA:0:7}"
+          ACTUAL_VERSION="$(curl --fail --silent --show-error \
+            http://127.0.0.1:8001/version)"
+
+          echo "Version response: $ACTUAL_VERSION"
+
+          echo "$ACTUAL_VERSION" | grep -Fq "\"version\":\"$EXPECTED_VERSION\""
+
+          trap - ERR
+          echo "Deployment successful: $EXPECTED_VERSION"
