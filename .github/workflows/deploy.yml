@@ -86,7 +86,10 @@ jobs:
                 "$PREVIOUS_IMAGE"
 
               curl --fail --silent --show-error \
-                --retry 10 --retry-delay 2 --retry-connrefused \
+                --retry 15 \
+                --retry-all-errors \
+                --retry-delay 2 \
+                --retry-connrefused \
                 http://127.0.0.1:8001/health
 
               echo "Rollback completed."
@@ -109,7 +112,10 @@ jobs:
 
           # Verify application health
           curl --fail --silent --show-error \
-            --retry 10 --retry-delay 2 --retry-connrefused \
+            --retry 15 \
+            --retry-all-errors \
+            --retry-delay 2 \
+            --retry-connrefused \
             http://127.0.0.1:8001/health
 
           # Verify the deployed commit version
